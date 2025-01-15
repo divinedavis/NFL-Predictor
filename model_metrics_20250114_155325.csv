@@ -1,0 +1,2 @@
+final_loss,final_accuracy,val_loss,val_accuracy,total_samples,feature_dimensions
+0.987736165523529,0.7530864477157593,0.9006742238998413,0.9024389982223511,203,64

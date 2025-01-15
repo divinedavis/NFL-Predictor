@@ -1,0 +1,2 @@
+final_loss,final_accuracy,val_loss,val_accuracy,total_samples
+0.17824029922485352,0.9876543283462524,0.16601425409317017,1.0,203
