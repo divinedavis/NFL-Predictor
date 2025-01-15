@@ -1,70 +1,62 @@
-# Set these environment variables before importing tensorflow
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
-# Now import the rest
-import tensorflow as tf
-tf.get_logger().setLevel('ERROR')
-
 from nfl_data_prep import NFLDataPreprocessor
-from nfl_predictor import NFLPredictor
 import pandas as pd
-from datetime import datetime
 
 def main():
-    try:
-        # Initialize data preprocessor
-        print("\n=== Loading NFL Data ===")
-        preprocessor = NFLDataPreprocessor()
+    # Initialize preprocessor
+    preprocessor = NFLDataPreprocessor()
+    
+    # Load data
+    if not preprocessor.load_data():
+        print("Failed to load data")
+        return
+    
+    # Set teams to analyze
+    team1 = "Dallas Cowboys"
+    team2 = "Philadelphia Eagles"
+    print(f"\nAnalyzing matchups between {team1} and {team2}")
+    
+    # Find all games between these teams
+    matches = preprocessor.games_df[
+        ((preprocessor.games_df['winner'] == team1) & (preprocessor.games_df['loser'] == team2)) |
+        ((preprocessor.games_df['winner'] == team2) & (preprocessor.games_df['loser'] == team1))
+    ].sort_values('date')
+    
+    print(f"\nFound {len(matches)} games between these teams")
+    
+    if len(matches) > 0:
+        # Show each game
+        print("\nGame History:")
+        for _, game in matches.iterrows():
+            date = game['date'].strftime('%Y-%m-%d')
+            winner = game['winner']
+            loser = game['loser']
+            winner_pts = game['winner_pts']
+            loser_pts = game['loser_pts']
+            print(f"{date}: {winner} ({winner_pts}) def. {loser} ({loser_pts})")
         
-        # Load data
-        if not preprocessor.load_data():
-            raise ValueError("Failed to load data")
+        # Calculate win percentages
+        team1_wins = len(matches[matches['winner'] == team1])
+        team2_wins = len(matches[matches['winner'] == team2])
+        total_games = len(matches)
         
-        # Prepare features
-        print("\n=== Preparing Features ===")
-        X, y = preprocessor.prepare_features(lookback_games=5)
-        print(f"Total samples: {len(X)}")
-        print(f"Feature dimensions: {X.shape}")
+        team1_pct = (team1_wins / total_games) * 100
+        team2_pct = (team2_wins / total_games) * 100
         
-        # Create and train model
-        print("\n=== Training Model ===")
-        predictor = NFLPredictor()
-        history = predictor.train(X, y, epochs=100, batch_size=32)
+        print(f"\nHistorical Record:")
+        print(f"{team1}: {team1_wins} wins ({team1_pct:.1f}%)")
+        print(f"{team2}: {team2_wins} wins ({team2_pct:.1f}%)")
         
-        # Save results
-        print("\n=== Saving Results ===")
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Save metrics
-        metrics = {
-            'final_loss': history.history['loss'][-1],
-            'final_accuracy': history.history['accuracy'][-1],
-            'val_loss': history.history['val_loss'][-1],
-            'val_accuracy': history.history['val_accuracy'][-1],
-            'total_samples': len(X),
-            'feature_dimensions': X.shape[1]
-        }
-        
-        metrics_df = pd.DataFrame([metrics])
-        metrics_filename = f'model_metrics_{timestamp}.csv'
-        metrics_df.to_csv(metrics_filename, index=False)
-        
-        # Plot training history
-        predictor.plot_training_history()
-        
-        print(f"\nModel Performance:")
-        print(f"Training Accuracy: {metrics['final_accuracy']:.4f}")
-        print(f"Validation Accuracy: {metrics['val_accuracy']:.4f}")
-        print(f"\nResults saved to:")
-        print(f"- Metrics: {metrics_filename}")
-        print(f"- Training plot: training_history_{timestamp}.png")
-        
-    except Exception as e:
-        print(f"\nError occurred: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
+        # Make prediction
+        print(f"\nPrediction for next matchup:")
+        if team1_wins > team2_wins:
+            print(f"{team1} is favored to win ({team1_pct:.1f}% chance)")
+        elif team2_wins > team1_wins:
+            print(f"{team2} is favored to win ({team2_pct:.1f}% chance)")
+        else:
+            print("Teams are evenly matched (50% chance each)")
+            
+    else:
+        print("No games found between these teams")
 
 if __name__ == "__main__":
     main()
