@@ -1,4 +1,5 @@
 from nfl_data_prep import NFLDataPreprocessor
+import pandas as pd
 
 def get_team_results(games_df, team):
     """Get wins and losses for a team with opponents"""
@@ -14,6 +15,61 @@ def get_team_results(games_df, team):
     
     return results
 
+def get_all_teams(games_df):
+    """Get list of all teams"""
+    teams = set(pd.concat([games_df['winner'], games_df['loser']]))
+    return sorted(list(teams))
+
+def analyze_common_opponents(games_df, team1, team2):
+    """Analyze how two teams performed against common opponents"""
+    team1_results = get_team_results(games_df, team1)
+    team2_results = get_team_results(games_df, team2)
+    
+    common_opponents = set(team1_results.keys()) & set(team2_results.keys())
+    common_opponents = common_opponents - {team1, team2}  # Remove the teams themselves
+    
+    team1_points = 0
+    team2_points = 0
+    
+    analysis = f"\n{team1} vs {team2}\n"
+    analysis += "Common opponents:\n"
+    
+    for opponent in sorted(common_opponents):
+        analysis += f"- {opponent}\n"
+        team1_result = team1_results[opponent]
+        team2_result = team2_results[opponent]
+        
+        if team1_result == 'won' and team2_result == 'lost':
+            team1_points += 1
+            analysis += f"  {team1} beat {opponent} ({team2} lost) -> {team1} +1\n"
+        elif team2_result == 'won' and team1_result == 'lost':
+            team2_points += 1
+            analysis += f"  {team2} beat {opponent} ({team1} lost) -> {team2} +1\n"
+    
+    analysis += f"\nResults:\n"
+    analysis += f"{team1}: {team1_points} points\n"
+    analysis += f"{team2}: {team2_points} points\n"
+    
+    prediction = ""
+    if team1_points > team2_points:
+        prediction = f"{team1} predicted to win (+{team1_points-team2_points} points)"
+    elif team2_points > team1_points:
+        prediction = f"{team2} predicted to win (+{team2_points-team1_points} points)"
+    else:
+        prediction = "Even matchup"
+    
+    analysis += f"Prediction: {prediction}\n"
+    
+    return {
+        'team1': team1,
+        'team2': team2,
+        'team1_points': team1_points,
+        'team2_points': team2_points,
+        'common_opponents': len(common_opponents),
+        'prediction': prediction,
+        'analysis': analysis
+    }
+
 def main():
     # Initialize preprocessor
     preprocessor = NFLDataPreprocessor()
@@ -23,59 +79,31 @@ def main():
         print("Failed to load data")
         return
     
-    # Teams to analyze
-    cowboys = "Dallas Cowboys"
-    eagles = "Philadelphia Eagles"
+    # Get all teams
+    teams = get_all_teams(preprocessor.games_df)
+    print(f"\nAnalyzing {len(teams)} teams:")
+    for team in teams:
+        print(f"- {team}")
     
-    # Get results for each team
-    cowboys_results = get_team_results(preprocessor.games_df, cowboys)
-    eagles_results = get_team_results(preprocessor.games_df, eagles)
+    # Analyze all possible matchups
+    print("\nAnalyzing all matchups...")
+    results = []
     
-    # Find common opponents
-    common_opponents = set(cowboys_results.keys()) & set(eagles_results.keys())
-    
-    print(f"\nCommon Opponents:")
-    for opponent in sorted(common_opponents):
-        if opponent not in [cowboys, eagles]:  # Exclude direct matchups
-            print(f"- {opponent}")
-    
-    print(f"\nCommon Opponent Analysis:")
-    print("-------------------------")
-    
-    cowboys_points = 0
-    eagles_points = 0
-    
-    for opponent in sorted(common_opponents):
-        if opponent not in [cowboys, eagles]:  # Exclude direct matchups
-            cowboys_result = cowboys_results[opponent]
-            eagles_result = eagles_results[opponent]
+    for i in range(len(teams)):
+        for j in range(i + 1, len(teams)):
+            team1 = teams[i]
+            team2 = teams[j]
             
-            # Detailed logging for each opponent
-            print(f"\nAnalyzing {opponent}:")
-            print(f"  Cowboys result: {cowboys_result}")
-            print(f"  Eagles result: {eagles_result}")
-            
-            if cowboys_result == 'won' and eagles_result == 'lost':
-                cowboys_points += 1
-                print(f"  Cowboys beat {opponent} (Eagles lost) -> Cowboys +1")
-            elif eagles_result == 'won' and cowboys_result == 'lost':
-                eagles_points += 1
-                print(f"  Eagles beat {opponent} (Cowboys lost) -> Eagles +1")
-            else:
-                print("  No points awarded")
+            analysis = analyze_common_opponents(preprocessor.games_df, team1, team2)
+            if analysis['common_opponents'] > 0:  # Only show if they have common opponents
+                print(analysis['analysis'])
+                results.append(analysis)
     
-    print("\nFinal Score:")
-    print(f"Cowboys: {cowboys_points} points")
-    print(f"Eagles: {eagles_points} points")
-    
-    # Make prediction based on points
-    print("\nPrediction:")
-    if cowboys_points > eagles_points:
-        print(f"Cowboys performed better against common opponents (+{cowboys_points-eagles_points} points)")
-    elif eagles_points > cowboys_points:
-        print(f"Eagles performed better against common opponents (+{eagles_points-cowboys_points} points)")
-    else:
-        print("Teams performed equally against common opponents")
+    # Summary
+    print("\nSummary of Predictions:")
+    print("=====================")
+    for result in results:
+        print(f"{result['team1']} vs {result['team2']}: {result['prediction']}")
 
 if __name__ == "__main__":
     main()
