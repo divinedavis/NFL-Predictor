@@ -1,5 +1,18 @@
 from nfl_data_prep import NFLDataPreprocessor
-import pandas as pd
+
+def get_team_results(games_df, team):
+    """Get wins and losses for a team with opponents"""
+    results = {}
+    team_games = games_df[
+        (games_df['winner'] == team) | (games_df['loser'] == team)
+    ]
+    
+    for _, game in team_games.iterrows():
+        opponent = game['loser'] if game['winner'] == team else game['winner']
+        won = game['winner'] == team
+        results[opponent] = 'won' if won else 'lost'
+    
+    return results
 
 def main():
     # Initialize preprocessor
@@ -10,53 +23,59 @@ def main():
         print("Failed to load data")
         return
     
-    # Set teams to analyze
-    team1 = "Dallas Cowboys"
-    team2 = "Philadelphia Eagles"
-    print(f"\nAnalyzing matchups between {team1} and {team2}")
+    # Teams to analyze
+    cowboys = "Dallas Cowboys"
+    eagles = "Philadelphia Eagles"
     
-    # Find all games between these teams
-    matches = preprocessor.games_df[
-        ((preprocessor.games_df['winner'] == team1) & (preprocessor.games_df['loser'] == team2)) |
-        ((preprocessor.games_df['winner'] == team2) & (preprocessor.games_df['loser'] == team1))
-    ].sort_values('date')
+    # Get results for each team
+    cowboys_results = get_team_results(preprocessor.games_df, cowboys)
+    eagles_results = get_team_results(preprocessor.games_df, eagles)
     
-    print(f"\nFound {len(matches)} games between these teams")
+    # Find common opponents
+    common_opponents = set(cowboys_results.keys()) & set(eagles_results.keys())
     
-    if len(matches) > 0:
-        # Show each game
-        print("\nGame History:")
-        for _, game in matches.iterrows():
-            date = game['date'].strftime('%Y-%m-%d')
-            winner = game['winner']
-            loser = game['loser']
-            winner_pts = game['winner_pts']
-            loser_pts = game['loser_pts']
-            print(f"{date}: {winner} ({winner_pts}) def. {loser} ({loser_pts})")
-        
-        # Calculate win percentages
-        team1_wins = len(matches[matches['winner'] == team1])
-        team2_wins = len(matches[matches['winner'] == team2])
-        total_games = len(matches)
-        
-        team1_pct = (team1_wins / total_games) * 100
-        team2_pct = (team2_wins / total_games) * 100
-        
-        print(f"\nHistorical Record:")
-        print(f"{team1}: {team1_wins} wins ({team1_pct:.1f}%)")
-        print(f"{team2}: {team2_wins} wins ({team2_pct:.1f}%)")
-        
-        # Make prediction
-        print(f"\nPrediction for next matchup:")
-        if team1_wins > team2_wins:
-            print(f"{team1} is favored to win ({team1_pct:.1f}% chance)")
-        elif team2_wins > team1_wins:
-            print(f"{team2} is favored to win ({team2_pct:.1f}% chance)")
-        else:
-            print("Teams are evenly matched (50% chance each)")
+    print(f"\nCommon Opponents:")
+    for opponent in sorted(common_opponents):
+        if opponent not in [cowboys, eagles]:  # Exclude direct matchups
+            print(f"- {opponent}")
+    
+    print(f"\nCommon Opponent Analysis:")
+    print("-------------------------")
+    
+    cowboys_points = 0
+    eagles_points = 0
+    
+    for opponent in sorted(common_opponents):
+        if opponent not in [cowboys, eagles]:  # Exclude direct matchups
+            cowboys_result = cowboys_results[opponent]
+            eagles_result = eagles_results[opponent]
             
+            # Detailed logging for each opponent
+            print(f"\nAnalyzing {opponent}:")
+            print(f"  Cowboys result: {cowboys_result}")
+            print(f"  Eagles result: {eagles_result}")
+            
+            if cowboys_result == 'won' and eagles_result == 'lost':
+                cowboys_points += 1
+                print(f"  Cowboys beat {opponent} (Eagles lost) -> Cowboys +1")
+            elif eagles_result == 'won' and cowboys_result == 'lost':
+                eagles_points += 1
+                print(f"  Eagles beat {opponent} (Cowboys lost) -> Eagles +1")
+            else:
+                print("  No points awarded")
+    
+    print("\nFinal Score:")
+    print(f"Cowboys: {cowboys_points} points")
+    print(f"Eagles: {eagles_points} points")
+    
+    # Make prediction based on points
+    print("\nPrediction:")
+    if cowboys_points > eagles_points:
+        print(f"Cowboys performed better against common opponents (+{cowboys_points-eagles_points} points)")
+    elif eagles_points > cowboys_points:
+        print(f"Eagles performed better against common opponents (+{eagles_points-cowboys_points} points)")
     else:
-        print("No games found between these teams")
+        print("Teams performed equally against common opponents")
 
 if __name__ == "__main__":
     main()
